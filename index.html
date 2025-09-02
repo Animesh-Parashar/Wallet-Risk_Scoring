@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallet Risk Score Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #4f46e5;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-xl mx-auto p-8">
+        <div class="bg-white p-8 rounded-2xl shadow-lg text-center">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Wallet Risk Analyzer</h1>
+            <p class="text-gray-500 mb-6">Enter an Ethereum wallet address to analyze its risk profile.</p>
+            
+            <form id="addressForm">
+                <input type="text" id="ethAddress" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="e.g., 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" required>
+                <button type="submit" id="submitBtn" class="w-full mt-4 bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition disabled:bg-indigo-300">
+                    Analyze Address
+                </button>
+            </form>
+
+            <!-- Results will be displayed here -->
+            <div id="results" class="mt-6 text-left">
+                <!-- This will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('addressForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const address = document.getElementById('ethAddress').value;
+            const resultsDiv = document.getElementById('results');
+            const submitBtn = document.getElementById('submitBtn');
+
+            // --- 1. Show a loading state ---
+            resultsDiv.innerHTML = `
+                <div class="flex items-center justify-center p-4 bg-gray-50 rounded-lg">
+                    <div class="spinner w-6 h-6 rounded-full"></div>
+                    <p class="ml-4 text-gray-600 font-medium">Analyzing... This may take a few minutes.</p>
+                </div>
+            `;
+            submitBtn.disabled = true;
+
+            try {
+                // --- 2. Send the address to the backend ---
+                const response = await fetch('http://127.0.0.1:5000/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: address })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    // Handle errors from the backend (e.g., timeout, Kaggle failure)
+                    throw new Error(result.error || 'An unknown server error occurred.');
+                }
+                
+                // --- 3. Display the successful results ---
+                const confidencePercent = (result.confidence * 100).toFixed(2);
+                const predictMetric = result.prediction ===1 && confidencePercent >= 90
+                console.log(predictMetric)
+                const predictionText = predictMetric ? 'High Risk' : 'Low Risk';
+                const colorClass = predictMetric === 1 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+
+                resultsDiv.innerHTML = `
+                    <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Analysis Complete</h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-500">Address:</span>
+                                <span class="font-mono text-sm bg-gray-200 text-gray-700 px-2 py-1 rounded">${result.address.substring(0, 6)}...${result.address.substring(result.address.length - 4)}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-500">Risk Prediction:</span>
+                                <span class="font-semibold px-3 py-1 text-sm rounded-full ${colorClass}">${predictionText}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-500">Confidence Score:</span>
+                                <span class="font-semibold text-gray-700">${confidencePercent}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                // --- 4. Display any errors ---
+                resultsDiv.innerHTML = `
+                    <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <p class="font-semibold text-red-800">An Error Occurred</p>
+                        <p class="text-red-700 mt-1">${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                // --- 5. Re-enable the button ---
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
